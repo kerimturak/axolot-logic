@@ -1,6 +1,14 @@
-module ders_002(
-    input a,
-    output b
+/*
+    ders2'nin
+    kodunu yazıyorum
+*/
+
+module ders_002 (
+    input wire [3:0] a,        // wire
+    input wire [3:0] b,
+    output wire [3:0] y
 );
-    assign b = a;
+
+    assign y = a & b;
+
 endmodule
