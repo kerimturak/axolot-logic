@@ -52,5 +52,8 @@ synth: check-top
 show: check-top
 	$(YOSYS) -p "read_verilog $(RTL_FILES); synth -top $(RTL_TOP); show"
 
+showview: show # birden fazla modülü gösterme
+	xdot show_$(RTL_TOP).dot
+
 clean:
 	rm -rf $(WORK_DIR) transcript
