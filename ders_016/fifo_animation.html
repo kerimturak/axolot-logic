@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFO Animation (Vertical, 1 Byte)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 2px solid black;
+            background-color: white;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>FIFO Animation (1 Byte, Vertical)</h1>
+    <canvas id="fifoCanvas" width="400" height="600"></canvas>
+    <div class="controls">
+        <button onclick="enqueue()">Enqueue</button>
+        <button onclick="dequeue()">Dequeue</button>
+        <button onclick="reset()">Reset</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('fifoCanvas');
+        const ctx = canvas.getContext('2d');
+        const FIFO_SIZE = 8;
+        let fifo = Array(FIFO_SIZE).fill(null);
+        let writePtr = 0;
+        let readPtr = 0;
+        let animating = false;
+        let animationStep = 0;
+        let animationType = '';
+
+        function drawFIFO() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const boxWidth = 100;
+            const boxHeight = 60;
+            const startX = 150;
+            const startY = 50;
+
+            // Draw FIFO boxes vertically
+            for (let i = 0; i < FIFO_SIZE; i++) {
+                ctx.strokeStyle = 'black';
+                ctx.fillStyle = fifo[i] !== null ? '#a0d0ff' : 'white';
+                ctx.strokeRect(startX, startY + i * boxHeight, boxWidth, boxHeight);
+                ctx.fillRect(startX, startY + i * boxHeight, boxWidth, boxHeight);
+                if (fifo[i] !== null) {
+                    ctx.fillStyle = 'black';
+                    ctx.font = '20px Arial';
+                    ctx.fillText(fifo[i].toString().padStart(3, '0'), startX + 20, startY + i * boxHeight + 35);
+                }
+            }
+
+            // Draw pointers
+            ctx.fillStyle = 'red';
+            ctx.font = '16px Arial';
+            ctx.fillText('Write Ptr', startX + boxWidth + 10, startY + writePtr * boxHeight + 35);
+            ctx.beginPath();
+            ctx.moveTo(startX + boxWidth, startY + writePtr * boxHeight + boxHeight / 2);
+            ctx.lineTo(startX + boxWidth + 10, startY + writePtr * boxHeight + boxHeight / 2);
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+
+            ctx.fillStyle = 'blue';
+            ctx.fillText('Read Ptr', startX - 70, startY + readPtr * boxHeight + 35);
+            ctx.beginPath();
+            ctx.moveTo(startX, startY + readPtr * boxHeight + boxHeight / 2);
+            ctx.lineTo(startX - 10, startY + readPtr * boxHeight + boxHeight / 2);
+            ctx.strokeStyle = 'blue';
+            ctx.stroke();
+
+            // Draw status
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Status: ${isFull() ? 'Full' : isEmpty() ? 'Empty' : 'Partially Filled'}`, 50, 30);
+        }
+
+        function isFull() {
+            return fifo.every(slot => slot !== null);
+        }
+
+        function isEmpty() {
+            return fifo.every(slot => slot === null);
+        }
+
+        function enqueue() {
+            if (animating || isFull()) return;
+            animating = true;
+            animationType = 'enqueue';
+            animationStep = 0;
+            // Generate random 1-byte value (0-255)
+            fifo[writePtr] = Math.floor(Math.random() * 256);
+            animateEnqueue();
+        }
+
+        function animateEnqueue() {
+            const boxWidth = 100;
+            const boxHeight = 60;
+            const startX = 150;
+            const startY = 50;
+            if (animationStep < 20) {
+                ctx.clearRect(startX - 50, 0, boxWidth, startY);
+                ctx.fillStyle = '#a0d0ff';
+                ctx.fillRect(startX - 50, startY - 20 + animationStep, boxWidth, boxHeight);
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.fillText(fifo[writePtr].toString().padStart(3, '0'), startX - 30, startY + 35 + animationStep);
+                animationStep++;
+                setTimeout(animateEnqueue, 50);
+            } else {
+                writePtr = (writePtr + 1) % FIFO_SIZE;
+                animating = false;
+                drawFIFO();
+            }
+        }
+
+        function dequeue() {
+            if (animating || isEmpty()) return;
+            animating = true;
+            animationType = 'dequeue';
+            animationStep = 0;
+            animateDequeue();
+        }
+
+        function animateDequeue() {
+            const boxWidth = 100;
+            const boxHeight = 60;
+            const startX = 150;
+            const startY = 50;
+            if (animationStep < 20) {
+                ctx.clearRect(startX, startY + readPtr * boxHeight + boxHeight, boxWidth, 20);
+                ctx.fillStyle = '#a0d0ff';
+                ctx.fillRect(startX, startY + readPtr * boxHeight + boxHeight + animationStep, boxWidth, boxHeight);
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.fillText(fifo[readPtr].toString().padStart(3, '0'), startX + 20, startY + readPtr * boxHeight + boxHeight + 35 + animationStep);
+                animationStep++;
+                setTimeout(animateDequeue, 50);
+            } else {
+                fifo[readPtr] = null;
+                readPtr = (readPtr + 1) % FIFO_SIZE;
+                animating = false;
+                drawFIFO();
+            }
+        }
+
+        function reset() {
+            if (animating) return;
+            fifo = Array(FIFO_SIZE).fill(null);
+            writePtr = 0;
+            readPtr = 0;
+            drawFIFO();
+        }
+
+        drawFIFO();
+    </script>
+</body>
+</html>
