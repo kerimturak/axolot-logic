@@ -1,21 +1,21 @@
 module tb_data_types;
 
   // Veri tipi tanımlamaları
-  bit         b;          // 2 durumlu, sadece 0 veya 1
-  logic       l;          // 4 durumlu, 0/1/X/Z olabilir
-  reg         r;          // Eski stil 4 durumlu kayıt
-  wire        w;          // Net tipi, bir kaynak tarafından sürülmeli
-  byte        bt;         // 8 bit signed
-  shortint    si;         // 16 bit signed
-  int         i;          // 32 bit signed
-  longint     li;         // 64 bit signed
-  integer     old_i;      // Eski stil signed integer (en az 32 bit)
-  time        t;          // Simülasyon zamanı (64 bit)
-  real        real_val;   // 64 bit kayan nokta (float)
-  shortreal   sreal_val;  // 32 bit kısa float
-  string      str;        // Dinamik uzunluklu karakter dizisi
+  bit       b;  // 2 durumlu, sadece 0 veya 1
+  logic     l;  // 4 durumlu, 0/1/X/Z olabilir
+  reg       r;  // Eski stil 4 durumlu kayıt
+  wire      w;  // Net tipi, bir kaynak tarafından sürülmeli
+  byte      bt;  // 8 bit signed
+  shortint  si;  // 16 bit signed
+  int       i;  // 32 bit signed
+  longint   li;  // 64 bit signed
+  integer   old_i;  // Eski stil signed integer (en az 32 bit)
+  time      t;  // Simülasyon zamanı (64 bit)
+  real      real_val;  // 64 bit kayan nokta (float)
+  shortreal sreal_val;  // 32 bit kısa float
+  string    str;  // Dinamik uzunluklu karakter dizisi
 
-  assign w = r; // wire tipi bir kaynak tarafından sürülmelidir
+  assign w = r;  // wire tipi bir kaynak tarafından sürülmelidir
 
   initial begin
     // Başlangıç varsayılan değerleri
@@ -35,7 +35,7 @@ module tb_data_types;
     $display("shortreal   = %0f", sreal_val);
     $display("string      = \"%s\" (uzunluk = %0d)", str, str.len());
 
-    #5; // 5 zaman birimi bekle
+    #5;  // 5 zaman birimi bekle
 
     // Signed (işaretli) değerleri ata
     b         = -1'b1;

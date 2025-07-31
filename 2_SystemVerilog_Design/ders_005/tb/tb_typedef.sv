@@ -4,18 +4,11 @@ grup altında birleştiren bileşik bir veri türüdür. C/C++ dilindeki
 struct yapısına benzer şekilde, ilişkili değişkenleri tek bir isim
 altında organize etmeye olanak tanır.
 */
-module tb_typedef (
-    input c,
-    output logic d
-);
-
-
+module tb_typedef ();
 
   /*
   SystemVerilog, typedef anahtar kelimesiyle kullanıcıların kendi özel veri türlerini tanımlamasına izin verir.
   */
-
-
 
   logic        a;
   logic        reset;

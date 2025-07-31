@@ -7,7 +7,7 @@ module tb_enum_types;
 
 
   typedef struct packed {
-    int age  ;
+    int age;
     bit [3:0] id;
   } employee_t;
 
@@ -15,7 +15,7 @@ module tb_enum_types;
 
   typedef union {
     bit [31:0] data;
-    bit [7:0] fbyte;
+    bit [7:0]  fbyte;
   } data_u_t;
 
   data_u_t data_u;
@@ -26,18 +26,18 @@ module tb_enum_types;
     data_u.fbyte = 8'hCC;
 
     $display("Data: %0h", data_u.data);
-    
+
     $display("Fbyte: %0h", data_u.fbyte);
 
 
 
-   ////employee.name = "ahmet";
-   //employee = '{
-   //  id : 123,
-   //  default: 5
-   //};
+    ////employee.name = "ahmet";
+    //employee = '{
+    //  id : 123,
+    //  default: 5
+    //};
 
-   //$display("age: %0d, id: %0d", employee.age, employee.id);
+    //$display("age: %0d, id: %0d", employee.age, employee.id);
   end
 
 
@@ -51,7 +51,7 @@ module tb_enum_types;
 
 
 
-/*
+  /*
   //enum {red, yellow, green} ligth1, ligth2; // anonymous int
   typedef enum bit [4:0] {red[4:0]} ligth_t;
 

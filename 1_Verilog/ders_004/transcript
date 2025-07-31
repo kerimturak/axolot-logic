@@ -1,0 +1,62 @@
+# vsim -work work tb_data_types -do "run -all; quit" 
+# Start time: 23:43:59 on Jul 31,2025
+# Loading work.tb_data_types
+# run -all
+# === VERILOG VERI TURLERI VE OZELLIKLERI ===
+# 
+# Wire baslangic degeri: x
+# Atanan deger: 0
+# 
+# Wire baslangic degeri: xxxxxxxx
+# Atanan deger: 246
+# 
+# Reg baslangic degeri: xxxxxxxxxxxxxxxx
+# Atanan deger: 65526
+# 
+# Real baslangic degeri: 00000000
+# Atanan deger: -0.500000
+# 
+# Time baslangic degeri: xxxxxxxxxxxxxxxx
+# Atanan deger:                   70
+# 
+# Integer baslangic degeri: xxxxxxxx
+# Atanan deger:         -10
+# 
+# Strign: KT
+# Wire    size: 0
+# Reg     size: 0
+# Real    size: 11111111111111111111111111111111
+# Time    size: 1000110
+# Integer size: 11111111111111111111111111110110
+#  quit
+add wave -position insertpoint sim:/tb_data_types/*
+restart
+run -all
+# === VERILOG VERI TURLERI VE OZELLIKLERI ===
+# 
+# Wire baslangic degeri: x
+# Atanan deger: 0
+# 
+# Wire baslangic degeri: xxxxxxxx
+# Atanan deger: 246
+# 
+# Reg baslangic degeri: xxxxxxxxxxxxxxxx
+# Atanan deger: 65526
+# 
+# Real baslangic degeri: 00000000
+# Atanan deger: -0.500000
+# 
+# Time baslangic degeri: xxxxxxxxxxxxxxxx
+# Atanan deger:                   70
+# 
+# Integer baslangic degeri: xxxxxxxx
+# Atanan deger:         -10
+# 
+# Strign: KT
+# Wire    size: 0
+# Reg     size: 0
+# Real    size: 11111111111111111111111111111111
+# Time    size: 1000110
+# Integer size: 11111111111111111111111111110110
+# End time: 23:51:01 on Jul 31,2025, Elapsed time: 0:07:02
+# Errors: 0, Warnings: 0
