@@ -8,6 +8,7 @@ module tb_my_func ();
   logic [3:0] y;
 
   // Fonksiyon:
+  function logic [3:0] my_func(input logic flag, input logic [3:0] a_in, input logic [3:0] b_in);
     if (flag) return a_in + b_in;
     else return a_in - b_in;
   endfunction
