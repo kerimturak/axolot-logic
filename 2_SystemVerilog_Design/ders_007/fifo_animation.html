@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFO Animasyonları</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #e9ecef;
+            color: #343a40;
+            padding: 20px;
+        }
+        h1 {
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+        }
+        .fifo-section {
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            width: 350px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        h2 {
+            text-align: center;
+            color: #495057;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        canvas {
+            border: 2px solid #adb5bd;
+            background-color: #fff;
+            margin-top: 15px;
+            border-radius: 6px;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 18px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #007bff;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .info-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9f5ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            text-align: left;
+            display: none; /* Başlangıçta gizli */
+        }
+        .info-panel h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .info-panel p {
+            margin: 5px 0;
+        }
+        .legend {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #6c757d;
+            text-align: center;
+        }
+        .legend span {
+            margin: 0 5px;
+        }
+        .legend .write-ptr { color: red; font-weight: bold; }
+        .legend .read-ptr { color: blue; font-weight: bold; }
+        .footer {
+            margin-top: 40px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Üç Farklı FIFO Tasarımının Animasyonlu Gösterimi</h1>
+    <div class="container">
+        <div class="fifo-section">
+            <h2>Sayaçlı FIFO</h2>
+            <canvas id="counterCanvas" width="300" height="400"></canvas>
+            <div class="controls">
+                <button onclick="enqueue('counter')">Yaz (Enqueue)</button>
+                <button onclick="dequeue('counter')">Oku (Dequeue)</button>
+                <button onclick="reset('counter')">Sıfırla</button>
+                <button onclick="showInfo('counter')">Bilgi</button>
+            </div>
+            <div class="info-panel" id="counter-info"></div>
+        </div>
+
+        <div class="fifo-section">
+            <h2>Fazla Bitli FIFO</h2>
+            <canvas id="extraBitCanvas" width="300" height="400"></canvas>
+            <div class="controls">
+                <button onclick="enqueue('extraBit')">Yaz (Enqueue)</button>
+                <button onclick="dequeue('extraBit')">Oku (Dequeue)</button>
+                <button onclick="reset('extraBit')">Sıfırla</button>
+                <button onclick="showInfo('extraBit')">Bilgi</button>
+            </div>
+            <div class="info-panel" id="extraBit-info"></div>
+        </div>
+
+        <div class="fifo-section">
+            <h2>Tek Boşluklu FIFO</h2>
+            <canvas id="singleEmptyCanvas" width="300" height="400"></canvas>
+            <div class="controls">
+                <button onclick="enqueue('singleEmpty')">Yaz (Enqueue)</button>
+                <button onclick="dequeue('singleEmpty')">Oku (Dequeue)</button>
+                <button onclick="reset('singleEmpty')">Sıfırla</button>
+                <button onclick="showInfo('singleEmpty')">Bilgi</button>
+            </div>
+            <div class="info-panel" id="singleEmpty-info"></div>
+        </div>
+    </div>
+    <div class="footer">
+        <p>Tasarım ve Animasyon: Verilog'da Sık Kullanılan FIFO Yapıları</p>
+    </div>
+
+    <script>
+        const FIFO_SIZE = 8;
+        const BOX_WIDTH = 120;
+        const BOX_HEIGHT = 40;
+        const START_X = 90;
+        const START_Y = 50;
+
+        const fifos = {
+            counter: {
+                canvas: document.getElementById('counterCanvas'),
+                ctx: document.getElementById('counterCanvas').getContext('2d'),
+                fifo: Array(FIFO_SIZE).fill(null),
+                writePtr: 0,
+                readPtr: 0,
+                count: 0,
+                animating: false
+            },
+            extraBit: {
+                canvas: document.getElementById('extraBitCanvas'),
+                ctx: document.getElementById('extraBitCanvas').getContext('2d'),
+                fifo: Array(FIFO_SIZE).fill(null),
+                writePtr: 0,
+                readPtr: 0,
+                animating: false
+            },
+            singleEmpty: {
+                canvas: document.getElementById('singleEmptyCanvas'),
+                ctx: document.getElementById('singleEmptyCanvas').getContext('2d'),
+                fifo: Array(FIFO_SIZE).fill(null),
+                writePtr: 0,
+                readPtr: 0,
+                animating: false
+            }
+        };
+
+        function drawFIFO(id) {
+            const { ctx, fifo, writePtr, readPtr } = fifos[id];
+            ctx.clearRect(0, 0, fifos[id].canvas.width, fifos[id].canvas.height);
+
+            // Başlık ve Durum
+            let status = getStatus(id);
+            ctx.fillStyle = '#495057';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Durum: ${status}`, 10, 25);
+            if (id === 'counter') {
+                ctx.fillText(`Eleman Sayısı: ${fifos[id].count}`, 10, 45);
+            }
+
+            for (let i = 0; i < FIFO_SIZE; i++) {
+                // Kutu çizimi
+                ctx.strokeStyle = '#adb5bd';
+                ctx.fillStyle = fifo[i] !== null ? '#cce5ff' : '#f0f0f0';
+                ctx.fillRect(START_X, START_Y + i * BOX_HEIGHT, BOX_WIDTH, BOX_HEIGHT);
+                ctx.strokeRect(START_X, START_Y + i * BOX_HEIGHT, BOX_WIDTH, BOX_HEIGHT);
+
+                // Veri yazımı
+                if (fifo[i] !== null) {
+                    ctx.fillStyle = '#000';
+                    ctx.font = '16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(fifo[i].toString().padStart(3, '0'), START_X + BOX_WIDTH / 2, START_Y + i * BOX_HEIGHT + BOX_HEIGHT / 2 + 5);
+                }
+            }
+
+            // Puanter çizimi
+            ctx.textAlign = 'left';
+            // Write Pointer
+            ctx.fillStyle = 'red';
+            ctx.font = '14px Arial';
+            ctx.fillText('Yazma', START_X + BOX_WIDTH + 10, START_Y + writePtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2 + 5);
+            ctx.beginPath();
+            ctx.moveTo(START_X + BOX_WIDTH, START_Y + writePtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2);
+            ctx.lineTo(START_X + BOX_WIDTH + 10, START_Y + writePtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2);
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+
+            // Read Pointer
+            ctx.fillStyle = 'blue';
+            ctx.fillText('Okuma', START_X - 60, START_Y + readPtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2 + 5);
+            ctx.beginPath();
+            ctx.moveTo(START_X, START_Y + readPtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2);
+            ctx.lineTo(START_X - 10, START_Y + readPtr % FIFO_SIZE * BOX_HEIGHT + BOX_HEIGHT / 2);
+            ctx.strokeStyle = 'blue';
+            ctx.stroke();
+        }
+
+        function getStatus(id) {
+            const { fifo, writePtr, readPtr, count } = fifos[id];
+            const isFull = () => {
+                if (id === 'counter') return count === FIFO_SIZE;
+                if (id === 'extraBit') return (writePtr & FIFO_SIZE) !== (readPtr & FIFO_SIZE) && (writePtr % FIFO_SIZE) === (readPtr % FIFO_SIZE);
+                if (id === 'singleEmpty') return (writePtr + 1) % FIFO_SIZE === readPtr % FIFO_SIZE;
+            };
+            const isEmpty = () => {
+                if (id === 'counter') return count === 0;
+                if (id === 'extraBit') return writePtr === readPtr;
+                if (id === 'singleEmpty') return writePtr === readPtr;
+            };
+            
+            if (isFull()) return 'DOLU';
+            if (isEmpty()) return 'BOŞ';
+            return 'Kısmen Dolu';
+        }
+
+        function enqueue(id) {
+            if (fifos[id].animating || getStatus(id) === 'DOLU') return;
+            fifos[id].animating = true;
+            const value = Math.floor(Math.random() * 256);
+            const { fifo, writePtr } = fifos[id];
+
+            // Animasyon adımları
+            let step = 0;
+            const animate = () => {
+                if (step < 20) {
+                    drawFIFO(id);
+                    fifos[id].ctx.fillStyle = '#cce5ff';
+                    fifos[id].ctx.fillRect(START_X, START_Y + writePtr % FIFO_SIZE * BOX_HEIGHT - 20 + step, BOX_WIDTH, BOX_HEIGHT);
+                    fifos[id].ctx.fillStyle = '#000';
+                    fifos[id].ctx.font = '16px Arial';
+                    fifos[id].ctx.textAlign = 'center';
+                    fifos[id].ctx.fillText(value.toString().padStart(3, '0'), START_X + BOX_WIDTH / 2, START_Y + writePtr % FIFO_SIZE * BOX_HEIGHT - 20 + step + BOX_HEIGHT / 2 + 5);
+                    step++;
+                    requestAnimationFrame(animate);
+                } else {
+                    fifo[writePtr % FIFO_SIZE] = value;
+                    fifos[id].writePtr++;
+                    if (id === 'counter') fifos[id].count++;
+                    fifos[id].animating = false;
+                    drawFIFO(id);
+                }
+            };
+            animate();
+        }
+
+        function dequeue(id) {
+            if (fifos[id].animating || getStatus(id) === 'BOŞ') return;
+            fifos[id].animating = true;
+            const { fifo, readPtr } = fifos[id];
+
+            // Animasyon adımları
+            let step = 0;
+            const animate = () => {
+                if (step < 20) {
+                    drawFIFO(id);
+                    fifos[id].ctx.fillStyle = '#cce5ff';
+                    fifos[id].ctx.fillRect(START_X, START_Y + readPtr % FIFO_SIZE * BOX_HEIGHT + step, BOX_WIDTH, BOX_HEIGHT);
+                    fifos[id].ctx.fillStyle = '#000';
+                    fifos[id].ctx.font = '16px Arial';
+                    fifos[id].ctx.textAlign = 'center';
+                    fifos[id].ctx.fillText(fifo[readPtr % FIFO_SIZE].toString().padStart(3, '0'), START_X + BOX_WIDTH / 2, START_Y + readPtr % FIFO_SIZE * BOX_HEIGHT + step + BOX_HEIGHT / 2 + 5);
+                    step++;
+                    requestAnimationFrame(animate);
+                } else {
+                    fifo[readPtr % FIFO_SIZE] = null;
+                    fifos[id].readPtr++;
+                    if (id === 'counter') fifos[id].count--;
+                    fifos[id].animating = false;
+                    drawFIFO(id);
+                }
+            };
+            animate();
+        }
+
+        function reset(id) {
+            if (fifos[id].animating) return;
+            fifos[id].fifo = Array(FIFO_SIZE).fill(null);
+            fifos[id].writePtr = 0;
+            fifos[id].readPtr = 0;
+            if (id === 'counter') fifos[id].count = 0;
+            drawFIFO(id);
+        }
+
+        function showInfo(id) {
+            const infoPanel = document.getElementById(`${id}-info`);
+            const info = getInfoText(id);
+            if (infoPanel.style.display === 'block') {
+                infoPanel.style.display = 'none';
+            } else {
+                infoPanel.innerHTML = info;
+                infoPanel.style.display = 'block';
+            }
+        }
+
+        function getInfoText(id) {
+            if (id === 'counter') {
+                return `
+                    <h3>Sayaçlı FIFO</h3>
+                    <p>Bu tasarım, FIFO'nun içindeki eleman sayısını takip etmek için bir **sayaç (counter)** kullanır.</p>
+                    <p><b>Doluluk ve Boşluk:</b></p>
+                    <ul>
+                        <li><b>BOŞ:</b> Sayaç değeri 0 olduğunda.</li>
+                        <li><b>DOLU:</b> Sayaç değeri FIFO kapasitesine eşit olduğunda.</li>
+                    </ul>
+                    <p><b>Avantaj:</b> Basit ve anlaşılır bir mantığa sahiptir.</p>
+                `;
+            } else if (id === 'extraBit') {
+                return `
+                    <h3>Fazla Bitli FIFO</h3>
+                    <p>Bu tasarım, yazma ve okuma işaretçilerine normal adres bitlerinin üzerine bir **fazladan bit** ekler.</p>
+                    <p><b>Doluluk ve Boşluk:</b></p>
+                    <ul>
+                        <li><b>BOŞ:</b> Her iki işaretçi de (tüm bitleri) eşit olduğunda.</li>
+                        <li><b>DOLU:</b> Fazladan bitler farklıyken, adres bitleri aynı olduğunda.</li>
+                    </ul>
+                    <p><b>Avantaj:</b> FIFO'nun tam kapasitesini kullanır ve doluluk/boşluk durumlarını kesin olarak ayırır.</p>
+                `;
+            } else if (id === 'singleEmpty') {
+                return `
+                    <h3>Tek Boşluklu FIFO</h3>
+                    <p>Bu tasarım, doluluk ve boşluk durumlarını ayırmak için FIFO'da her zaman en az bir **boş bellek alanı** bırakır.</p>
+                    <p><b>Doluluk ve Boşluk:</b></p>
+                    <ul>
+                        <li><b>BOŞ:</b> Yazma ve okuma işaretçileri eşit olduğunda.</li>
+                        <li><b>DOLU:</b> Yazma işaretçisi bir sonraki adreste okuma işaretçisine ulaştığında.</li>
+                    </ul>
+                    <p><b>Avantaj:</b> Ekstra sayaç veya bit gerektirmez, daha az donanım kaynağı kullanabilir.</p>
+                `;
+            }
+        }
+        
+        drawFIFO('counter');
+        drawFIFO('extraBit');
+        drawFIFO('singleEmpty');
+    </script>
+</body>
+</html>

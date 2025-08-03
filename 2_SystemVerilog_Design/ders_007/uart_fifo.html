@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFO'lu UART Animasyonu</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 20px;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-bottom: 20px;
+        }
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 80%;
+            max-width: 1000px;
+        }
+        .panels-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .fifo-panel, .uart-panel {
+            width: 48%;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+        canvas {
+            border: 2px solid #ccc;
+            background-color: #fdfdfd;
+            border-radius: 6px;
+        }
+        .fifo-controls, .uart-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .fifo-controls input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 80px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #1a73e8;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0b5fb6;
+        }
+        button:disabled {
+            background-color: #9e9e9e;
+            cursor: not-allowed;
+        }
+        .status-text {
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-item div {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>FIFO'lu UART Gönderici Animasyonu</h1>
+    <div class="main-container">
+        <div class="panels-container">
+            <div class="fifo-panel">
+                <h3>Veri FIFO'su (Gönderici)</h3>
+                <canvas id="fifoCanvas" width="300" height="300"></canvas>
+                <div class="fifo-controls">
+                    <input type="text" id="dataInput" maxlength="1" placeholder="Bir karakter girin">
+                    <button id="writeButton" onclick="writeToFifo()">FIFO'ya Yaz</button>
+                    <button id="resetButton" onclick="resetFifo()">Sıfırla</button>
+                </div>
+                <div id="fifoStatus" class="status-text">Durum: Boş</div>
+            </div>
+
+            <div class="uart-panel">
+                <h3>UART İletimi</h3>
+                <canvas id="uartCanvas" width="500" height="300"></canvas>
+                <div class="uart-controls">
+                    <button id="startUartButton" onclick="startUart()">UART İletimini Başlat</button>
+                    <button id="pauseButton" onclick="pauseUart()">Duraklat/Devam Et</button>
+                </div>
+                <div id="uartStatus" class="status-text">Durum: Boşta</div>
+                <div class="legend">
+                    <div class="legend-item"><div style="background-color: #4CAF50;"></div>Boşta / Lojik 1</div>
+                    <div class="legend-item"><div style="background-color: #f44336;"></div>Lojik 0</div>
+                    <div class="legend-item"><div style="background-color: #2196F3;"></div>Veri Biti</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // FIFO Değişkenleri
+        const FIFO_SIZE = 8;
+        const FIFO_BOX_WIDTH = 80;
+        const FIFO_BOX_HEIGHT = 30;
+        const FIFO_START_X = 110;
+        const FIFO_START_Y = 30;
+        let fifo = Array(FIFO_SIZE).fill(null);
+        let writePtr = 0;
+        let readPtr = 0;
+        let fifoAnimating = false;
+
+        // UART Değişkenleri
+        const DATA_BITS = 8;
+        const UART_BIT_WIDTH = 50;
+        const UART_Y_LEVEL_1 = 50;
+        const UART_Y_LEVEL_0 = 150;
+        let uartAnimating = false;
+        let currentByte = null;
+        let bitIndex = -1; // -1: Idle, 0: Start Bit, 1-8: Data, 9: Stop Bit
+        let isPaused = false;
+
+        // Canvas ve Butonlar
+        const fifoCanvas = document.getElementById('fifoCanvas');
+        const fifoCtx = fifoCanvas.getContext('2d');
+        const uartCanvas = document.getElementById('uartCanvas');
+        const uartCtx = uartCanvas.getContext('2d');
+        const dataInput = document.getElementById('dataInput');
+        const writeButton = document.getElementById('writeButton');
+        const startUartButton = document.getElementById('startUartButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const fifoStatusDiv = document.getElementById('fifoStatus');
+        const uartStatusDiv = document.getElementById('uartStatus');
+
+        function isFifoFull() {
+            return fifo.every(slot => slot !== null);
+        }
+        function isFifoEmpty() {
+            return fifo.every(slot => slot === null);
+        }
+
+        function drawFifo() {
+            fifoCtx.clearRect(0, 0, fifoCanvas.width, fifoCanvas.height);
+            fifoCtx.font = '14px Arial';
+            fifoCtx.textAlign = 'center';
+
+            let currentCount = fifo.filter(slot => slot !== null).length;
+            fifoStatusDiv.textContent = `Durum: ${isFifoFull() ? 'DOLU' : (isFifoEmpty() ? 'BOŞ' : 'Kısmen Dolu')} (${currentCount}/${FIFO_SIZE})`;
+
+            for (let i = 0; i < FIFO_SIZE; i++) {
+                fifoCtx.strokeStyle = '#6c757d';
+                fifoCtx.fillStyle = fifo[i] !== null ? '#e3f2fd' : '#f8f9fa';
+                fifoCtx.fillRect(FIFO_START_X, FIFO_START_Y + i * FIFO_BOX_HEIGHT, FIFO_BOX_WIDTH, FIFO_BOX_HEIGHT);
+                fifoCtx.strokeRect(FIFO_START_X, FIFO_START_Y + i * FIFO_BOX_HEIGHT, FIFO_BOX_WIDTH, FIFO_BOX_HEIGHT);
+
+                if (fifo[i] !== null) {
+                    fifoCtx.fillStyle = '#333';
+                    fifoCtx.fillText(fifo[i], FIFO_START_X + FIFO_BOX_WIDTH / 2, FIFO_START_Y + i * FIFO_BOX_HEIGHT + FIFO_BOX_HEIGHT / 2 + 5);
+                }
+            }
+        }
+
+        function writeToFifo() {
+            const char = dataInput.value.trim().toUpperCase();
+            if (char.length !== 1 || isFifoFull()) return;
+
+            const charCode = char.charCodeAt(0);
+            if (charCode < 32 || charCode > 126) {
+                alert("Lütfen bir ASCII karakteri girin (Örn: A, B, 1, ?).");
+                return;
+            }
+            
+            // FIFO animasyonu
+            let step = 0;
+            const animateWrite = () => {
+                if (step < 10) {
+                    drawFifo(); // FIFO'yu yeniden çiz
+                    // Animasyonlu karakteri çiz
+                    fifoCtx.fillStyle = '#1a73e8';
+                    fifoCtx.fillText(char, FIFO_START_X + FIFO_BOX_WIDTH / 2, FIFO_START_Y + writePtr * FIFO_BOX_HEIGHT - 20 + step * 5);
+                    step++;
+                    requestAnimationFrame(animateWrite);
+                } else {
+                    fifo[writePtr] = char;
+                    writePtr = (writePtr + 1) % FIFO_SIZE;
+                    dataInput.value = '';
+                    drawFifo();
+                }
+            };
+            animateWrite();
+        }
+
+        function resetFifo() {
+            fifo = Array(FIFO_SIZE).fill(null);
+            writePtr = 0;
+            readPtr = 0;
+            drawFifo();
+            currentByte = null;
+            bitIndex = -1;
+            uartAnimating = false;
+            isPaused = false;
+            drawUartIdle();
+            startUartButton.disabled = false;
+        }
+
+        function drawUartIdle() {
+            uartCtx.clearRect(0, 0, uartCanvas.width, uartCanvas.height);
+            uartCtx.fillStyle = '#4CAF50';
+            uartCtx.fillRect(0, UART_Y_LEVEL_1, uartCanvas.width, UART_Y_LEVEL_0 - UART_Y_LEVEL_1);
+            uartCtx.fillStyle = '#333';
+            uartCtx.font = '20px Arial';
+            uartCtx.textAlign = 'center';
+            uartCtx.fillText('UART Boşta Durumu (Lojik 1)', uartCanvas.width / 2, 250);
+            uartStatusDiv.textContent = 'Durum: Boşta';
+        }
+
+        function drawUartBit(x, y, label, color) {
+            uartCtx.fillStyle = color;
+            uartCtx.fillRect(x, y, UART_BIT_WIDTH, UART_Y_LEVEL_0 - UART_Y_LEVEL_1);
+            uartCtx.strokeStyle = '#333';
+            uartCtx.strokeRect(x, y, UART_BIT_WIDTH, UART_Y_LEVEL_0 - UART_Y_LEVEL_1);
+            uartCtx.fillStyle = '#333';
+            uartCtx.font = '14px Arial';
+            uartCtx.textAlign = 'center';
+            uartCtx.fillText(label, x + UART_BIT_WIDTH / 2, UART_Y_LEVEL_0 + 20);
+        }
+
+        function animateUart() {
+            if (!uartAnimating || isPaused) {
+                if (isPaused) {
+                    uartStatusDiv.textContent = 'Durum: Duraklatıldı';
+                }
+                setTimeout(animateUart, 100);
+                return;
+            }
+
+            if (currentByte === null) {
+                if (isFifoEmpty()) {
+                    uartAnimating = false;
+                    drawUartIdle();
+                    drawFifo();
+                    startUartButton.disabled = false;
+                    return;
+                } else {
+                    currentByte = fifo[readPtr];
+                    fifo[readPtr] = null;
+                    readPtr = (readPtr + 1) % FIFO_SIZE;
+                    drawFifo();
+                    bitIndex = 0;
+                }
+            }
+
+            uartCtx.clearRect(0, 0, uartCanvas.width, uartCanvas.height);
+            let currentX = 50;
+            const charCode = currentByte.charCodeAt(0);
+
+            // Başlangıç Biti
+            drawUartBit(currentX, UART_Y_LEVEL_0, 'Start', '#f44336');
+            currentX += UART_BIT_WIDTH;
+            
+            // Veri Bitleri
+            for (let i = 0; i < DATA_BITS; i++) {
+                const bitValue = (charCode >> i) & 1;
+                const yPos = bitValue === 1 ? UART_Y_LEVEL_1 : UART_Y_LEVEL_0;
+                const color = bitValue === 1 ? '#4CAF50' : '#f44336';
+                drawUartBit(currentX, yPos, `D${i}`, color);
+                currentX += UART_BIT_WIDTH;
+            }
+
+            // Durdurma Biti
+            drawUartBit(currentX, UART_Y_LEVEL_1, 'Stop', '#4CAF50');
+            currentX += UART_BIT_WIDTH;
+
+            // Bekleme Durumu
+            uartCtx.fillStyle = '#4CAF50';
+            uartCtx.fillRect(currentX, UART_Y_LEVEL_1, uartCanvas.width - currentX, UART_Y_LEVEL_0 - UART_Y_LEVEL_1);
+            
+            // Anlık durumu göster
+            uartCtx.fillStyle = '#333';
+            uartCtx.font = '20px Arial';
+            uartCtx.textAlign = 'left';
+            
+            let statusText = '';
+            if (bitIndex === 0) {
+                statusText = `Başlangıç Biti Gönderiliyor (${currentByte})`;
+            } else if (bitIndex >= 1 && bitIndex <= DATA_BITS) {
+                statusText = `Veri Biti D${bitIndex - 1} Gönderiliyor (${currentByte})`;
+            } else if (bitIndex === DATA_BITS + 1) {
+                statusText = `Durdurma Biti Gönderiliyor (${currentByte})`;
+            }
+            uartStatusDiv.textContent = `Durum: ${statusText}`;
+
+            // Animasyon çubuğunu çiz
+            const animationX = 50 + bitIndex * UART_BIT_WIDTH;
+            uartCtx.strokeStyle = '#ff9800';
+            uartCtx.lineWidth = 4;
+            uartCtx.beginPath();
+            uartCtx.moveTo(animationX, 0);
+            uartCtx.lineTo(animationX, uartCanvas.height);
+            uartCtx.stroke();
+            
+            if (bitIndex < DATA_BITS + 1) {
+                bitIndex++;
+                setTimeout(animateUart, 700);
+            } else {
+                currentByte = null;
+                setTimeout(animateUart, 1000); // Bir sonraki baytı göndermek için kısa bir bekleme
+            }
+        }
+
+        function startUart() {
+            if (uartAnimating || isFifoEmpty()) return;
+            uartAnimating = true;
+            startUartButton.disabled = true;
+            animateUart();
+        }
+
+        function pauseUart() {
+            isPaused = !isPaused;
+            pauseButton.textContent = isPaused ? 'Devam Et' : 'Duraklat';
+            uartStatusDiv.textContent = isPaused ? 'Durum: Duraklatıldı' : 'Durum: Gönderiliyor';
+        }
+
+        drawFifo();
+        drawUartIdle();
+    </script>
+</body>
+</html>

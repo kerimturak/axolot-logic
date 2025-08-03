@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFO Visualizations</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center mb-6">FIFO Implementations Visualization</h1>
+        <div class="flex justify-center mb-4">
+            <select id="fifoSelect" class="p-2 border rounded">
+                <option value="count">Counter-based FIFO</option>
+                <option value="linear">Linear FIFO</option>
+                <option value="wbit">Wrap-bit FIFO</option>
+            </select>
+            <button id="infoBtn" class="ml-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Show Info</button>
+        </div>
+        <div id="sketch-holder" class="flex justify-center"></div>
+        <div id="info" class="mt-4 p-4 bg-white rounded shadow hidden"></div>
+    </div>
+
+    <script>
+        let fifoType = 'count';
+        let fifoData = Array(4).fill(null);
+        let writePtr = 0;
+        let readPtr = 0;
+        let fifoCount = 0;
+        let wrapAround = false;
+        let full = false;
+        let empty = true;
+        let actionTimer = 0;
+        const FIFO_DEPTH = 4;
+        const DATA_WIDTH = 8;
+
+        function setup() {
+            let canvas = createCanvas(600, 300);
+            canvas.parent('sketch-holder');
+            textAlign(CENTER, CENTER);
+            textSize(16);
+        }
+
+        function draw() {
+            background(255);
+            drawFIFO();
+            actionTimer++;
+            if (actionTimer > 60) {
+                performFIFOAction();
+                actionTimer = 0;
+            }
+        }
+
+        function drawFIFO() {
+            const boxWidth = 100;
+            const boxHeight = 50;
+            const startX = 100;
+            const startY = 100;
+
+            // Draw FIFO boxes
+            for (let i = 0; i < FIFO_DEPTH; i++) {
+                let x = startX + i * boxWidth;
+                fill(fifoData[i] !== null ? 200 : 255);
+                rect(x, startY, boxWidth, boxHeight);
+                if (fifoData[i] !== null) {
+                    text(fifoData[i].toString(16).padStart(2, '0'), x + boxWidth / 2, startY + boxHeight / 2);
+                }
+            }
+
+            // Draw pointers
+            fill(0);
+            if (fifoType === 'count') {
+                text(`Count: ${fifoCount}`, startX + boxWidth * 2, startY - 30);
+            } else if (fifoType === 'wbit') {
+                text(`Wrap: ${wrapAround ? '1' : '0'}`, startX + boxWidth * 2, startY - 30);
+            }
+            text(`Write Ptr: ${writePtr}`, startX + (writePtr % FIFO_DEPTH) * boxWidth + boxWidth / 2, startY - 10);
+            text(`Read Ptr: ${readPtr}`, startX + (readPtr % FIFO_DEPTH) * boxWidth + boxWidth / 2, startY + boxHeight + 20);
+            text(`Full: ${full}`, startX, startY - 50);
+            text(`Empty: ${empty}`, startX + boxWidth * 3, startY - 50);
+        }
+
+        function performFIFOAction() {
+            if (!full && random(1) > 0.3) {
+                // Write operation
+                let newData = floor(random(256));
+                if (fifoType === 'count') {
+                    if (!full) {
+                        fifoData[writePtr] = newData;
+                        writePtr = (writePtr + 1) % FIFO_DEPTH;
+                        fifoCount++;
+                        updateStatusCount();
+                    }
+                } else if (fifoType === 'linear') {
+                    if (!full) {
+                        fifoData[writePtr] = newData;
+                        writePtr = (writePtr + 1) % FIFO_DEPTH;
+                        updateStatusLinear();
+                    }
+                } else if (fifoType === 'wbit') {
+                    if (!full) {
+                        fifoData[writePtr % FIFO_DEPTH] = newData;
+                        writePtr++;
+                        updateStatusWbit();
+                    }
+                }
+            } else if (!empty && random(1) > 0.5) {
+                // Read operation
+                if (fifoType === 'count') {
+                    if (!empty) {
+                        fifoData[readPtr] = null;
+                        readPtr = (readPtr + 1) % FIFO_DEPTH;
+                        fifoCount--;
+                        updateStatusCount();
+                    }
+                } else if (fifoType === 'linear') {
+                    if (!empty) {
+                        fifoData[readPtr] = null;
+                        readPtr = (readPtr + 1) % FIFO_DEPTH;
+                        updateStatusLinear();
+                    }
+                } else if (fifoType === 'wbit') {
+                    if (!empty) {
+                        fifoData[readPtr % FIFO_DEPTH] = null;
+                        readPtr++;
+                        updateStatusWbit();
+                    }
+                }
+            }
+        }
+
+        function updateStatusCount() {
+            full = (fifoCount === FIFO_DEPTH);
+            empty = (fifoCount === 0);
+        }
+
+        function updateStatusLinear() {
+            full = ((writePtr + 1) % FIFO_DEPTH === readPtr);
+            empty = (writePtr === readPtr);
+        }
+
+        function updateStatusWbit() {
+            wrapAround = (writePtr >> $clog2(FIFO_DEPTH)) !== (readPtr >> $clog2(FIFO_DEPTH));
+            full = wrapAround && ((writePtr % FIFO_DEPTH) === (readPtr % FIFO_DEPTH));
+            empty = (writePtr === readPtr);
+        }
+
+        function resetFIFO() {
+            fifoData = Array(FIFO_DEPTH).fill(null);
+            writePtr = 0;
+            readPtr = 0;
+            fifoCount = 0;
+            wrapAround = false;
+            full = false;
+            empty = true;
+        }
+
+        document.getElementById('fifoSelect').addEventListener('change', (e) => {
+            fifoType = e.target.value;
+            resetFIFO();
+        });
+
+        document.getElementById('infoBtn').addEventListener('click', () => {
+            const infoDiv = document.getElementById('info');
+            infoDiv.classList.remove('hidden');
+            if (fifoType === 'count') {
+                infoDiv.innerHTML = `
+                    <h2 class="text-xl font-bold">Counter-based FIFO</h2>
+                    <p><strong>Key Structure:</strong> Uses a counter (<code>fifo_count</code>) to track the number of elements.</p>
+                    <p><strong>Full Condition:</strong> <code>fifo_count == FIFO_DEPTH</code></p>
+                    <p><strong>Empty Condition:</strong> <code>fifo_count == 0</code></p>
+                    <p><strong>Difference:</strong> Explicitly tracks occupancy with a counter, making status checks straightforward but requires additional logic for the counter.</p>
+                `;
+            } else if (fifoType === 'linear') {
+                infoDiv.innerHTML = `
+                    <h2 class="text-xl font-bold">Linear FIFO</h2>
+                    <p><strong>Key Structure:</strong> Uses write and read pointers without a counter.</p>
+                    <p><strong>Full Condition:</strong> <code>(write_ptr + 1) == read_ptr</code></p>
+                    <p><strong>Empty Condition:</strong> <code>write_ptr == read_ptr</code></p>
+                    <p><strong>Difference:</strong> Simplest implementation, but less precise for full condition due to pointer comparison, may waste one slot.</p>
+                `;
+            } else if (fifoType === 'wbit') {
+                infoDiv.innerHTML = `
+                    <h2 class="text-xl font-bold">Wrap-bit FIFO</h2>
+                    <p><strong>Key Structure:</strong> Uses extended pointers with a wrap-around bit.</p>
+                    <p><strong>Full Condition:</strong> <code>wrap_around && (write_ptr[ADDR_WIDTH-1:0] == read_ptr[ADDR_WIDTH-1:0])</code></p>
+                    <p><strong>Empty Condition:</strong> <code>write_ptr == read_ptr</code></p>
+                    <p><strong>Difference:</strong> Uses an extra bit to track wrap-around, allowing full utilization of FIFO depth and precise status detection.</p>
+                `;
+            }
+        });
+
+        // Helper function to calculate $clog2
+        function $clog2(x) {
+            return Math.ceil(Math.log2(x));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UART Haberleşme Animasyonu</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 20px;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-bottom: 20px;
+        }
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        canvas {
+            border: 2px solid #ccc;
+            background-color: #fdfdfd;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #1a73e8;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0b5fb6;
+        }
+        button:disabled {
+            background-color: #9e9e9e;
+            cursor: not-allowed;
+        }
+        .info-panel {
+            width: 80%;
+            padding: 15px;
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 5px;
+            text-align: left;
+            display: none;
+            line-height: 1.6;
+        }
+        .info-panel h3 {
+            margin-top: 0;
+            color: #1a73e8;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-item div {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>UART Haberleşme Animasyonu</h1>
+    <div class="main-container">
+        <canvas id="uartCanvas" width="800" height="300"></canvas>
+        <div class="controls">
+            <button id="startButton" onclick="startAnimation()">Animasyonu Başlat</button>
+            <button id="infoButton" onclick="toggleInfo()">UART Hakkında Bilgi</button>
+        </div>
+        <div id="info-panel" class="info-panel"></div>
+        <div class="legend">
+            <div class="legend-item"><div style="background-color: #4CAF50;"></div>Boşta / Lojik 1</div>
+            <div class="legend-item"><div style="background-color: #f44336;"></div>Lojik 0</div>
+            <div class="legend-item"><div style="background-color: #2196F3;"></div>Veri Biti</div>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('uartCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const infoPanel = document.getElementById('info-panel');
+
+        const CHAR_TO_SEND = 'A'; // Gönderilecek karakter
+        const DATA_BITS = 8;
+        const BIT_WIDTH = 50;
+        const Y_LEVEL_1 = 50;
+        const Y_LEVEL_0 = 150;
+        const TEXT_Y = 250;
+
+        let isAnimating = false;
+        let bitIndex = -1; // -1: Idle, 0: Start Bit, 1-8: Data Bits, 9: Stop Bit
+
+        function drawIdleState() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, Y_LEVEL_1, canvas.width, Y_LEVEL_0 - Y_LEVEL_1);
+            ctx.fillStyle = '#333';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Bekleme Durumu (Lojik 1)', canvas.width / 2, TEXT_Y);
+        }
+
+        function drawBit(x, y, label, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, BIT_WIDTH, Y_LEVEL_0 - Y_LEVEL_1);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(x, y, BIT_WIDTH, Y_LEVEL_0 - Y_LEVEL_1);
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, x + BIT_WIDTH / 2, Y_LEVEL_0 + 20);
+        }
+
+        function animateUART() {
+            if (!isAnimating) {
+                drawIdleState();
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let currentX = 50;
+            const charCode = CHAR_TO_SEND.charCodeAt(0);
+            
+            // Başlangıç Biti (Start Bit)
+            drawBit(currentX, Y_LEVEL_0, 'Start', '#f44336');
+            currentX += BIT_WIDTH;
+
+            // Veri Bitleri
+            for (let i = 0; i < DATA_BITS; i++) {
+                const bitValue = (charCode >> i) & 1;
+                const yPos = bitValue === 1 ? Y_LEVEL_1 : Y_LEVEL_0;
+                const color = bitValue === 1 ? '#4CAF50' : '#f44336';
+                drawBit(currentX, yPos, `D${i}`, color);
+                currentX += BIT_WIDTH;
+            }
+
+            // Durdurma Biti (Stop Bit)
+            drawBit(currentX, Y_LEVEL_1, 'Stop', '#4CAF50');
+            currentX += BIT_WIDTH;
+
+            // Bekleme Durumu
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(currentX, Y_LEVEL_1, canvas.width - currentX, Y_LEVEL_0 - Y_LEVEL_1);
+
+            // Anlık durumu göster
+            ctx.fillStyle = '#333';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'left';
+            if (bitIndex === -1) {
+                ctx.fillText('Bekleme Durumu', 10, 20);
+            } else if (bitIndex === 0) {
+                ctx.fillText('Başlangıç Biti Gönderiliyor...', 10, 20);
+            } else if (bitIndex >= 1 && bitIndex <= DATA_BITS) {
+                ctx.fillText(`Veri Biti D${bitIndex - 1} Gönderiliyor...`, 10, 20);
+            } else if (bitIndex === DATA_BITS + 1) {
+                ctx.fillText('Durdurma Biti Gönderiliyor...', 10, 20);
+            } else {
+                ctx.fillText('Haberleşme Tamamlandı', 10, 20);
+            }
+            
+            // Animasyon çubuğunu çiz
+            const animationX = 50 + bitIndex * BIT_WIDTH;
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(animationX, 0);
+            ctx.lineTo(animationX, canvas.height);
+            ctx.stroke();
+
+            if (bitIndex < DATA_BITS + 2) {
+                bitIndex++;
+                setTimeout(animateUART, 500); // Her yarım saniyede bir sonraki adıma geç
+            } else {
+                isAnimating = false;
+                startButton.disabled = false;
+            }
+        }
+
+        function startAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+            startButton.disabled = true;
+            bitIndex = 0;
+            animateUART();
+        }
+        
+        function toggleInfo() {
+            if (infoPanel.style.display === 'block') {
+                infoPanel.style.display = 'none';
+            } else {
+                infoPanel.innerHTML = `
+                    <h3>UART (Universal Asynchronous Receiver-Transmitter) Nedir?</h3>
+                    <p>UART, iki cihaz arasında veriyi seri olarak, yani bit bit, tek bir hat üzerinden iletmek için kullanılan bir donanım protokoldür. "Asenkron" olması, veriyi senkronize etmek için ayrı bir saat sinyali hattı gerektirmediği anlamına gelir.</p>
+                    <p><b>Temel Bileşenler:</b></p>
+                    <ul>
+                        <li><b>Tx (Transmit):</b> Veri gönderme pini.</li>
+                        <li><b>Rx (Receive):</b> Veri alma pini.</li>
+                    </ul>
+                    <p><b>Veri Paketi Yapısı:</b></p>
+                    <p>UART, veriyi paketler halinde gönderir. Bir paket genellikle şunlardan oluşur:</p>
+                    <ul>
+                        <li><b>Başlangıç Biti (Start Bit):</b> Veri iletiminin başladığını belirtmek için bir '0' biti gönderilir.</li>
+                        <li><b>Veri Bitleri (Data Bits):</b> Genellikle 5 ila 9 bit arasında değişen, asıl veriyi içeren kısım.</li>
+                        <li><b>Durdurma Biti (Stop Bit):</b> Veri paketinin bittiğini belirtmek için bir veya iki '1' biti gönderilir.</li>
+                    </ul>
+                    <p>Bu animasyon, 'A' karakterinin (ASCII kodu 65) 8-bit veri olarak nasıl iletildiğini göstermektedir. Haberleşme, başlangıç bitinden sonra en düşük değerli bitten (LSB) başlayarak verinin gönderilmesiyle gerçekleşir.</p>
+                `;
+                infoPanel.style.display = 'block';
+            }
+        }
+
+        drawIdleState();
+    </script>
+</body>
+</html>
