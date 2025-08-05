@@ -2,16 +2,15 @@
 
 module tb_uart_tx;
 
-  // Testbench parametreleri
+  // Testbench Parametreleri
   // ---
+  parameter DATA_WIDTH = 8;
+  parameter FIFO_DEPTH = 16;
+  parameter CLK_PERIOD = 10;  // 100MHz clock (10ns period)
+  parameter BAUD_DIV = 104;  // 9600 baud rate için
+  parameter BAUD_CLK_PERIOD = CLK_PERIOD * BAUD_DIV;
 
-  parameter FIFO_DEPTH = 8;
-  parameter DATA_WIDTH = 16;
-  parameter CLK_PERIOD = 10;
-  parameter BAUD_DIV = 104;
-  parameter BAUD_CLK_PERIOD = BAUD_DIV * CLK_PERIOD;  // Divisor = Clock_Freq / (16 * Baud_Rate)
-
-  // Test sinyalleri
+  // Test Sinyalleri
   // ---
   logic        clk_i = 0;
   logic        rst_ni;
@@ -30,10 +29,11 @@ module tb_uart_tx;
 
   // Doğrulama İçin Kullanılacak Sinyaller
   // ---
-  logic [ 3:0] bit_counter;
   logic [ 9:0] expected_frame;
+  logic [ 3:0] bit_counter;
 
   // DUT (Device Under Test)
+  // ---
   uart_tx #(
       .DATA_WIDTH(DATA_WIDTH),
       .FIFO_DEPTH(FIFO_DEPTH)
@@ -49,45 +49,43 @@ module tb_uart_tx;
       .tx_bit_o  (tx_bit_o)
   );
 
-  // Saat sinyali üreteci
+  // Saat Sinyali Üretimi
   // ---
-  always #CLK_PERIOD clk_i = ~clk_i;
+  always #(CLK_PERIOD / 2) clk_i = ~clk_i;
 
-  // Gönderim fonksiyonşarı
+  // Gönderim Fonksiyonları
   // ---
-  // FIFO'ya tek bir byte yazmak için
-
+  // FIFO'ya tek bir byte yazmak için görev
   task write_fifo(input logic [7:0] data);
-    $strobe("Writing data:%0h to FIFO...", data);
+    $strobe("Writing data 'h%0h = 'b%0b to FIFO...", data, data);
     tx_we_i = 1;
     din_i   = data;
     @(posedge clk_i);
     tx_we_i = 0;
-    @(posedge clk_i);
+    @(posedge clk_i);  // İşlem için bir bekleme
   endtask
 
-  // UART bitlerini okumak ve doğrulamak için bir görev
+  // UART bitlerini okumak ve doğrulamak için görev
   task verify_tx_bit(input logic expected_bit, input int bit_index);
-    @(negedge clk_i);
-    #1;
-    if (expected_bit !== tx_bit_o) begin
-      $display("ERROR: TX bit verification failed! At bit %0d, expected: %0b, but got: %0b", bit_index, expected_bit, tx_bit_o);
+    @(posedge clk_i);
+    if (tx_bit_o !== expected_bit) begin
+      $display("ERROR: TX bit verification failed! At bit %0d, expected %b, but got %b", bit_index, expected_bit, tx_bit_o);
     end else begin
-      $display("INFO: TX bit verification successful. : Bit %0d is %b", bit_index, tx_bit_o);
+      $display("INFO: TX bit verification successful: Bit %0d is %b", bit_index, tx_bit_o);
     end
   endtask
 
-  // Test seneryasu
+  // Test Senaryosu
   // ---
-
   initial begin
-    $display("INFO: Starting UART TX Testbench...");
+
+    $display("INFO: Starting UART TX testbench...");
 
     // Başlangıç değerleri
-    tx_en_i <= 0;
+    baud_div_i <= BAUD_DIV;
     tx_we_i <= 0;
+    tx_en_i <= 0;
     din_i <= 0;
-    baud_div_i <= 0;
 
     // Reset
     rst_ni <= 0;
@@ -98,38 +96,50 @@ module tb_uart_tx;
     $display("INFO: Writing test data to FIFO...");
     for (int i = 0; i < test_data_arr.size(); i++) begin
       write_fifo(test_data_arr[i]);
+      // FIFO'nun dolup dolmadığını kontrol etmek için bir bekleme ekleyebilirsiniz.
+      // @(posedge empty_o); // FIFO boşalana kadar bekleme gibi
     end
 
     // Gönderimi başlat
     $display("INFO: Enabling TX and starting transmission...");
     tx_en_i <= 1;
 
+    // Her bir veri byte'ı için döngü
     for (int i = 0; i < test_data_arr.size(); i++) begin
+      // Yeni bir transferin başlamasını bekle
+      // Bu, DUT'nin yeni veriyi okuyup START bitini göndermeye başladığı andır.
+      // Bu, 'IDLE' durumundan 'SENDING_START' durumuna geçişe denk gelir.
       @(posedge clk_i);
+
+      // Beklenen frame'i oluştur: [Stop, Data, Start]
       expected_frame = {1'b1, test_data_arr[i], 1'b0};
 
+      // Start bitini (0) doğrula
       $display("INFO: Verifying start bit...");
       verify_tx_bit(expected_frame[0], 0);
 
-
-      for (bit_counter = 1; bit_counter < 8; bit_counter++) begin
+      // 8 adet veri bitini doğrula
+      for (bit_counter = 1; bit_counter <= 8; bit_counter++) begin
         #BAUD_CLK_PERIOD;
         verify_tx_bit(expected_frame[bit_counter], bit_counter);
       end
 
-      #BAUD_CLK_PERIOD;
+      // Stop bitini (1) doğrula
       $display("INFO: Verifying stop bit...");
+      #BAUD_CLK_PERIOD;
       verify_tx_bit(expected_frame[9], 9);
 
       #BAUD_CLK_PERIOD;
+
     end
 
+    // Transfer bittikten sonra bekle
+
     $display("INFO: All data transmitted. Waiting for final state...");
-    wait (empty_o && bit_counter == 9);
+    wait (bit_counter == 9 && empty_o);
     #100ns;
 
     $display("INFO: Test finished successfully!");
     $finish;
-
   end
 endmodule

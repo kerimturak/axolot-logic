@@ -29,7 +29,7 @@ module uart_tx #(
   // Dahili sinyaller
   logic        rd_en;
   logic [ 7:0] data;
-  logic [ 7:0] data_q;
+  logic [ 7:0] data_q;  // Start (1), Data (8), Stop (1)
   logic [ 3:0] bit_counter;
   logic [15:0] baud_counter;
 
@@ -98,6 +98,7 @@ module uart_tx #(
     endcase
 
     // TX Pini Çıkışı
+
     case (state)
       IDLE:          tx_bit_o = 1'b1;
       SENDING_START: tx_bit_o = 1'b0;
@@ -129,15 +130,25 @@ module uart_tx #(
 
       // Bit sayacı ve frame yönetimi
       if (baud_counter == baud_div_i - 1) begin
-        if (state == SENDING_DATA) begin
-          if (bit_counter == 7) begin
+        case (state)
+          IDLE: begin
             bit_counter <= 0;
-          end else begin
-            bit_counter <= bit_counter + 1;
           end
-        end else begin
-          bit_counter <= 0;
-        end
+          SENDING_START: begin
+            bit_counter <= 0;
+            data_q <= data;
+          end
+          SENDING_DATA: begin
+            if (bit_counter == 7) begin
+              bit_counter <= 0;
+            end else begin
+              bit_counter <= bit_counter + 1;
+            end
+          end
+          SENDING_STOP: begin
+            bit_counter <= 0;  // Stop bit'in gönderildiğini belirt
+          end
+        endcase
       end
     end
   end
