@@ -1,0 +1,90 @@
+# === Ayarlar ===
+RTL_DIR=rtl
+TB_DIR=tb
+WORK_DIR=work
+WAVEFORM=wave.vcd
+SYNTH_JSON=synth.json
+
+# === Araçlar ===
+VLIB=vlib
+VLOG=vlog
+VSIM=vsim
+YOSYS=yosys
+GTK=gtkwave
+VERIBLE_LINT=verible-verilog-lint
+
+# === Dosyalar ===
+RTL_FILES := $(wildcard $(RTL_DIR)/*.sv)
+TB_FILES  := $(wildcard $(TB_DIR)/*.sv)
+ALL_FILES := $(TB_FILES) $(RTL_FILES)
+
+# === Hedefler ===
+.PHONY: all sim sim_batch synth show showview view clean lint check-top setup compile
+
+all: sim
+
+check-top:
+ifndef RTL_TOP
+	$(error ❌ RTL_TOP tanımlanmalı. Örn: make sim RTL_TOP=cpu)
+endif
+
+setup: check-top
+	@echo "[🧱] 1. vlib work"
+	$(VLIB) $(WORK_DIR)
+
+# Lint hatası varsa make durur
+lint:
+	@echo "[🔍] Verible ile lint kontrolü..."
+	@if [ -z "$(RTL_FILES)" ]; then \
+		echo "⚠️  RTL dosyası bulunamadı, lint atlanıyor."; \
+	else \
+		echo "📁 Kontrol edilen dosyalar: $(RTL_FILES)"; \
+		$(VERIBLE_LINT) --rules_config_search $(RTL_FILES); \
+	fi
+
+
+compile:  check-top setup
+	@echo "[📝] 2. vlog"
+	$(VLOG) -work $(WORK_DIR) $(ALL_FILES)
+
+sim_batch: compile
+	@echo "[🚀] 3. vsim -c"
+	$(VSIM) +VERBOSE -c -work $(WORK_DIR) tb_$(RTL_TOP) -do "run -all; quit"
+	@echo "[✔] Simülasyon tamamlandı."
+
+sim: compile
+	@echo "[🚀] 3. vsim"
+	$(VSIM) -work $(WORK_DIR) tb_$(RTL_TOP) -do "run -all; quit"
+	@echo "[✔] Simülasyon tamamlandı."
+
+synth: check-top lint
+	@if [ -z "$(RTL_FILES)" ]; then \
+	  echo "⚠️  RTL dosyası bulunamadı, sentez atlanıyor."; \
+	else \
+	  echo "[🛠️] RTL dosyaları bulundu, sentez başlatılıyor..."; \
+	  $(YOSYS) -p "read_verilog -sv $(RTL_FILES); synth -top $(RTL_TOP); write_json $(SYNTH_JSON)"; \
+	  echo "[✔] Sentez tamamlandı. Çıktı: $(SYNTH_JSON)"; \
+	fi
+
+show: lint check-top
+	@if [ -z "$(RTL_FILES)" ]; then \
+	  echo "⚠️  RTL dosyası bulunamadı, şematik gösterim atlanıyor."; \
+	else \
+	  echo "[📈] Şematik oluşturuluyor..."; \
+	  $(YOSYS) -p "read_verilog $(RTL_FILES); synth -top $(RTL_TOP); show -format dot -prefix show_$(RTL_TOP) $(RTL_TOP)"; \
+	fi
+
+showview: show
+	@if [ -f show_$(RTL_TOP).dot ]; then \
+	  xdot show_$(RTL_TOP).dot; \
+	else \
+	  echo "⚠️  .dot dosyası bulunamadı. Önce 'make show RTL_TOP=...' komutunu çalıştırın."; \
+	fi
+
+view: $(WAVEFORM)
+	@echo "[👀] GTKWave başlatılıyor..."
+	$(GTK) $(WAVEFORM)
+
+clean:
+	rm -rf $(WORK_DIR) transcript vsim.wlf $(SYNTH_JSON) show_*.dot *.vcd
+	@echo "[✔] Temizlik tamamlandı."
