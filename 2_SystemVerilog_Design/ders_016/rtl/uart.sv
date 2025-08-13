@@ -28,6 +28,7 @@ module uart #(
   logic                                                                                                               [DATA_WIDTH-1:0] dout_o;  // RX FIFO çıkışı
   logic                                                                                                               [          31:0] rdata;
   logic                                                                                                                                rd_state;
+
   // Adres haritası
   enum logic [1:0] {UART_BAUD_ADDR = 2'b00, UART_CTRL_ADDR = 2'b01, UART_STATUS_ADDR = 2'b10, UART_DATA_ADDR = 2'b11}                  uart_reg_e;
 
@@ -52,20 +53,19 @@ module uart #(
       .DATA_WIDTH(DATA_WIDTH),
       .FIFO_DEPTH(FIFO_DEPTH)
   ) uart_rx_inst (
-      .clk_i        (clk_i),
-      .rst_ni       (rst_ni),
-      .baud_div_i   (baud_div_reg),
-      .rx_re_i      (rx_re_o),
-      .rx_en_i      (rx_en_reg),
-      .dout_o       (dout_o),
-      .full_o       (rx_full_o),
-      .empty_o      (rx_empty_o),
-      .rx_bit_i     (uart_rx_i),
-      .frame_error_o(rx_frame_error)
+      .clk_i     (clk_i),
+      .rst_ni    (rst_ni),
+      .baud_div_i(baud_div_reg),
+      .rx_re_i   (rx_re_o),
+      .rx_en_i   (rx_en_reg),
+      .dout_o    (dout_o),
+      .full_o    (rx_full_o),
+      .empty_o   (rx_empty_o),
+      .rx_bit_i  (uart_rx_i)
   );
 
   // Register yazma (senkron)
-  always_ff @(posedge clk_i or negedge rst_ni) begin
+  always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
       baud_div_reg <= 16'd0;
       tx_en_reg    <= 1'b0;
@@ -108,7 +108,7 @@ module uart #(
   end
 
   // Okuma verisi (senkron, stabil tutma)
-  always_ff @(posedge clk_i or negedge rst_ni) begin
+  always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
       rdata <= '0;
       rd_state <= '0;
@@ -134,4 +134,5 @@ module uart #(
   end
 
   assign dat_o = rd_state ? {{(32 - DATA_WIDTH) {1'b0}}, dout_o} : rdata;
+
 endmodule
